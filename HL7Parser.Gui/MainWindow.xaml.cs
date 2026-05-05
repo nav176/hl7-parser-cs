@@ -15,7 +15,27 @@ public partial class MainWindow : Window
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
     private double _treeZoom = 1.0;
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        SegTree.AddHandler(TreeViewItem.SelectedEvent,   new RoutedEventHandler(OnTreeNodeSelected));
+        SegTree.AddHandler(TreeViewItem.UnselectedEvent, new RoutedEventHandler(OnTreeNodeUnselected));
+    }
+
+    private static void OnTreeNodeSelected(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is TreeViewItem tvi)
+        {
+            tvi.Tag = tvi.Foreground;
+            tvi.Foreground = Brushes.White;
+        }
+    }
+
+    private static void OnTreeNodeUnselected(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is TreeViewItem tvi && tvi.Tag is Brush orig)
+            tvi.Foreground = orig;
+    }
 
     // ── Browse / Parse ───────────────────────────────────────────────────────
 
@@ -162,8 +182,14 @@ public partial class MainWindow : Window
                                 var repVal = string.Join(" ^ ", repComps.Select(c => c?.ToString() ?? "").Where(s => s != ""));
                                 var repNode = MakeSubNode($"{segId}-{fieldNum}~{r + 1}  =  {repVal}");
                                 for (int c = 0; c < repComps.Count; c++)
-                                    if (repComps[c] != null)
-                                        repNode.Items.Add(MakeSubNode($"{segId}-{fieldNum}~{r + 1}.{c + 1}  =  {repComps[c]}"));
+                                {
+                                    if (repComps[c] == null) continue;
+                                    var cn = ComponentFields.Get(segId, fieldNum, c + 1);
+                                    var lbl = cn != null
+                                        ? $"{segId}-{fieldNum}~{r + 1}.{c + 1}  {cn}  =  {repComps[c]}"
+                                        : $"{segId}-{fieldNum}~{r + 1}.{c + 1}  =  {repComps[c]}";
+                                    repNode.Items.Add(MakeSubNode(lbl));
+                                }
                                 composite.Items.Add(repNode);
                             }
                             else if (lst[r] != null)
@@ -175,8 +201,14 @@ public partial class MainWindow : Window
                     else
                     {
                         for (int c = 0; c < lst.Count; c++)
-                            if (lst[c] != null)
-                                composite.Items.Add(MakeSubNode($"{segId}-{fieldNum}.{c + 1}  =  {lst[c]}"));
+                        {
+                            if (lst[c] == null) continue;
+                            var cn = ComponentFields.Get(segId, fieldNum, c + 1);
+                            var lbl = cn != null
+                                ? $"{segId}-{fieldNum}.{c + 1}  {cn}  =  {lst[c]}"
+                                : $"{segId}-{fieldNum}.{c + 1}  =  {lst[c]}";
+                            composite.Items.Add(MakeSubNode(lbl));
+                        }
                     }
                     top.Items.Add(composite);
                 }
