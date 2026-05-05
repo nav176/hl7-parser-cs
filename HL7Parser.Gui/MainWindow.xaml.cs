@@ -258,6 +258,70 @@ public partial class MainWindow : Window
                 sec.AddRow($"Procedures ({pr1List.Count})", string.Join(" | ", procs));
             }
         }
+
+        AddSegmentSections(msg);
+    }
+
+    private void AddSegmentSections(HL7Message msg)
+    {
+        foreach (var (segId, repIdx) in msg.SegmentOrder)
+        {
+            Dictionary<string, object?> seg;
+            string label;
+
+            if (repIdx is null)
+            {
+                if (!msg.Segments.TryGetValue(segId, out seg!)) continue;
+                label = segId;
+            }
+            else
+            {
+                if (!msg.RepeatingSegments.TryGetValue(segId, out var insts) || repIdx >= insts.Count) continue;
+                var count = insts.Count;
+                label = count > 1 ? $"{segId} [{repIdx + 1} of {count}]" : segId;
+                seg = insts[repIdx.Value];
+            }
+
+            var sec = new CollapsibleSection(label, startCollapsed: true);
+            SummaryPanel.Children.Add(sec);
+
+            int fieldNum = 0;
+            foreach (var (field, value) in seg)
+            {
+                if (field == "segment_id") continue;
+                fieldNum++;
+                var rowLabel = $"{segId}-{fieldNum}  {field}";
+                var subItems = BuildSubItems(value);
+                if (subItems != null)
+                    sec.AddExpandableRow(rowLabel, ValueStr(value), subItems, keyWidth: 220);
+                else
+                    sec.AddRow(rowLabel, ValueStr(value), keyWidth: 220);
+            }
+        }
+    }
+
+    private static List<(string SubLabel, string SubValue)>? BuildSubItems(object? value)
+    {
+        if (value is not List<object?> lst || lst.Count == 0) return null;
+        bool hasSubLists = lst.Any(x => x is List<object?>);
+        var items = new List<(string, string)>();
+        if (hasSubLists)
+        {
+            for (int r = 0; r < lst.Count; r++)
+            {
+                if (lst[r] is List<object?> repComps)
+                    for (int c = 0; c < repComps.Count; c++)
+                        items.Add(($"rep {r + 1} · comp {c + 1}", repComps[c]?.ToString() ?? ""));
+                else if (lst[r] != null)
+                    items.Add(($"rep {r + 1}", lst[r]!.ToString()!));
+            }
+        }
+        else
+        {
+            for (int c = 0; c < lst.Count; c++)
+                items.Add(($"comp {c + 1}", lst[c]?.ToString() ?? ""));
+        }
+        return items.Count > 0 ? items : null;
     }
 
     private CollapsibleSection AddSection(string title)
@@ -274,8 +338,18 @@ public partial class MainWindow : Window
         SegTree.Items.Clear();
         var repCounts = msg.RepeatingSegments.ToDictionary(k => k.Key, v => v.Value.Count);
 
+        TreeViewItem MakeSubNode(string header) => new TreeViewItem
+        {
+            Header     = $"  {header}",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x65, 0x67, 0x6B)),
+            FontSize   = 10,
+            FontWeight = FontWeights.Normal,
+            Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
+        };
+
         void AddNode(string label, Dictionary<string, object?> seg)
         {
+            var segId = label.Length >= 3 ? label[..3] : label;
             var top = new TreeViewItem
             {
                 Header     = label,
@@ -284,16 +358,62 @@ public partial class MainWindow : Window
                 Background = new SolidColorBrush(Color.FromRgb(0xD8, 0xEA, 0xFD)),
                 FontWeight = FontWeights.Bold,
             };
+
+            int fieldNum = 0;
             foreach (var (field, value) in seg)
             {
                 if (field == "segment_id") continue;
-                top.Items.Add(new TreeViewItem
+                fieldNum++;
+                var fieldLabel = $"{segId}-{fieldNum}  {field}";
+
+                if (value is List<object?> lst)
                 {
-                    Header     = $"{field}  =  {ValueStr(value)}",
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
-                    FontWeight = FontWeights.Normal,
-                    Background = Brushes.White,
-                });
+                    var composite = new TreeViewItem
+                    {
+                        Header     = $"{fieldLabel}  =  {FlattenList(lst)}",
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
+                        FontWeight = FontWeights.Normal,
+                        Background = Brushes.White,
+                        IsExpanded = false,
+                    };
+                    bool hasSubLists = lst.Any(x => x is List<object?>);
+                    if (hasSubLists)
+                    {
+                        for (int r = 0; r < lst.Count; r++)
+                        {
+                            if (lst[r] is List<object?> repComps)
+                            {
+                                var repVal = string.Join(" ^ ", repComps.Select(c => c?.ToString() ?? "").Where(s => s != ""));
+                                var repNode = MakeSubNode($"rep {r + 1}  =  {repVal}");
+                                for (int c = 0; c < repComps.Count; c++)
+                                    if (repComps[c] != null)
+                                        repNode.Items.Add(MakeSubNode($"comp {c + 1}  =  {repComps[c]}"));
+                                composite.Items.Add(repNode);
+                            }
+                            else if (lst[r] != null)
+                            {
+                                composite.Items.Add(MakeSubNode($"rep {r + 1}  =  {lst[r]}"));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (int c = 0; c < lst.Count; c++)
+                            if (lst[c] != null)
+                                composite.Items.Add(MakeSubNode($"comp {c + 1}  =  {lst[c]}"));
+                    }
+                    top.Items.Add(composite);
+                }
+                else
+                {
+                    top.Items.Add(new TreeViewItem
+                    {
+                        Header     = $"{fieldLabel}  =  {ValueStr(value)}",
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
+                        FontWeight = FontWeights.Normal,
+                        Background = Brushes.White,
+                    });
+                }
             }
             SegTree.Items.Add(top);
         }

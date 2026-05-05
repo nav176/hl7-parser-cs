@@ -22,10 +22,11 @@ public class CollapsibleSection : UserControl
     private readonly Button       _header;
     private readonly StackPanel   _body;
     private readonly Grid         _bodyClip;
-    private bool                  _expanded = true;
+    private bool                  _expanded;
 
-    public CollapsibleSection(string title)
+    public CollapsibleSection(string title, bool startCollapsed = false)
     {
+        _expanded = !startCollapsed;
         var (accent, bg) = Colours[_colourIndex++ % Colours.Length];
         var accentBrush  = (Brush)new BrushConverter().ConvertFrom(accent)!;
         var bgBrush      = (Brush)new BrushConverter().ConvertFrom(bg)!;
@@ -71,6 +72,9 @@ public class CollapsibleSection : UserControl
         };
         _bodyClip.Children.Add(_body);
         cardStack.Children.Add(_bodyClip);
+
+        if (startCollapsed)
+            _body.Visibility = Visibility.Collapsed;
 
         Content = card;
     }
@@ -127,10 +131,10 @@ public class CollapsibleSection : UserControl
     }
 
     /// <summary>Add a labelled key-value row to the section body.</summary>
-    public void AddRow(string label, string value, bool bold = false)
+    public void AddRow(string label, string value, bool bold = false, int keyWidth = 160)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(keyWidth) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var keyLabel = new TextBlock
@@ -157,5 +161,101 @@ public class CollapsibleSection : UserControl
         row.Children.Add(keyLabel);
         row.Children.Add(valLabel);
         _body.Children.Add(row);
+    }
+
+    /// <summary>Add a key-value row that expands to reveal per-component sub-rows on click.</summary>
+    public void AddExpandableRow(string label, string value, List<(string SubLabel, string SubValue)> subItems,
+                                 bool bold = false, int keyWidth = 160)
+    {
+        bool isExpanded = false;
+        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+
+        var mainGrid = new Grid();
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(keyWidth) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        mainGrid.Cursor = System.Windows.Input.Cursors.Hand;
+
+        var keyLabel = new TextBlock
+        {
+            Text              = $"{label}:",
+            Foreground        = new SolidColorBrush(Color.FromRgb(0x65, 0x67, 0x6B)),
+            FontSize          = 11,
+            TextAlignment     = TextAlignment.Right,
+            Margin            = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight        = bold ? FontWeights.Bold : FontWeights.Normal,
+        };
+        Grid.SetColumn(keyLabel, 0);
+
+        var valLabel = new TextBlock
+        {
+            Text              = string.IsNullOrEmpty(value) ? "—" : value,
+            Foreground        = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
+            TextWrapping      = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight        = bold ? FontWeights.Bold : FontWeights.Normal,
+        };
+        Grid.SetColumn(valLabel, 1);
+
+        var arrow = new TextBlock
+        {
+            Text              = "▶",
+            FontSize          = 9,
+            Foreground        = new SolidColorBrush(Color.FromRgb(0x65, 0x67, 0x6B)),
+            Margin            = new Thickness(6, 0, 2, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(arrow, 2);
+
+        mainGrid.Children.Add(keyLabel);
+        mainGrid.Children.Add(valLabel);
+        mainGrid.Children.Add(arrow);
+
+        var subPanel = new StackPanel
+        {
+            Visibility = Visibility.Collapsed,
+            Margin     = new Thickness(keyWidth + 10, 2, 0, 4),
+            Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
+        };
+
+        foreach (var (sl, sv) in subItems)
+        {
+            var subGrid = new Grid { Margin = new Thickness(4, 1, 4, 1) };
+            subGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            subGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var subKey = new TextBlock
+            {
+                Text       = $"{sl}:  ",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8D, 0x91)),
+                FontSize   = 10,
+            };
+            Grid.SetColumn(subKey, 0);
+
+            var subVal = new TextBlock
+            {
+                Text         = string.IsNullOrEmpty(sv) ? "—" : sv,
+                Foreground   = new SolidColorBrush(Color.FromRgb(0x3A, 0x3B, 0x3C)),
+                FontSize     = 10,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            Grid.SetColumn(subVal, 1);
+
+            subGrid.Children.Add(subKey);
+            subGrid.Children.Add(subVal);
+            subPanel.Children.Add(subGrid);
+        }
+
+        mainGrid.MouseLeftButtonUp += (_, _) =>
+        {
+            isExpanded      = !isExpanded;
+            arrow.Text      = isExpanded ? "▼" : "▶";
+            subPanel.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
+        };
+
+        outer.Children.Add(mainGrid);
+        outer.Children.Add(subPanel);
+        _body.Children.Add(outer);
     }
 }
