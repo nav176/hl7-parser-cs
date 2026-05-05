@@ -149,14 +149,6 @@
 
         <!-- Tabs -->
         <TabControl x:Name="Tabs" Background="#F0F2F5" BorderThickness="0">
-            <TabItem Header="Summary">
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Background="#F0F2F5">
-                    <StackPanel x:Name="SummaryPanel" Margin="16,14"/>
-                </ScrollViewer>
-            </TabItem>
-
             <TabItem Header="Segments">
                 <DockPanel Background="White">
                     <Border DockPanel.Dock="Top" Height="40" Background="#F7F8FA"
@@ -168,7 +160,17 @@
                                         Click="OnExpandAll" Margin="0,0,6,0"/>
                                 <Button x:Name="CollapseBtn" Content="Collapse All" Width="94" Height="28"
                                         Style="{StaticResource SecBtn}" IsEnabled="False"
-                                        Click="OnCollapseAll"/>
+                                        Click="OnCollapseAll" Margin="0,0,12,0"/>
+                                <TextBlock Text="Zoom:" VerticalAlignment="Center"
+                                           Foreground="#65676B" FontSize="11" Margin="0,0,6,0"/>
+                                <Button Content="−" Width="28" Height="28"
+                                        Style="{StaticResource SecBtn}" Margin="0,0,4,0"
+                                        Click="OnZoomOut"/>
+                                <TextBlock x:Name="ZoomLabel" Text="100%" Width="36"
+                                           VerticalAlignment="Center" TextAlignment="Center"
+                                           Foreground="#65676B" FontSize="11" Margin="0,0,4,0"/>
+                                <Button Content="+" Width="28" Height="28"
+                                        Style="{StaticResource SecBtn}" Click="OnZoomIn"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                                 <TextBlock Text="Search:" VerticalAlignment="Center"
@@ -184,7 +186,18 @@
                         </DockPanel>
                     </Border>
                     <TreeView x:Name="SegTree" BorderThickness="0"
-                              VirtualizingPanel.IsVirtualizing="True"/>
+                              VirtualizingPanel.IsVirtualizing="True">
+                        <TreeView.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                                             Color="#0033A0"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                                             Color="White"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                                             Color="#0033A0"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                                             Color="White"/>
+                        </TreeView.Resources>
+                    </TreeView>
                 </DockPanel>
             </TabItem>
 
