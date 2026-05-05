@@ -5,7 +5,7 @@
         Background="#F0F2F5" FontFamily="Segoe UI" FontSize="12">
 
     <Window.Resources>
-        <Style TargetType="TabItem">
+        <Style TargetType="TabItem"> 
             <Setter Property="Foreground" Value="#65676B"/>
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Padding"    Value="20,9"/>

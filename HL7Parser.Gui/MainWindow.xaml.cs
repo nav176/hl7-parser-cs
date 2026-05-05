@@ -9,7 +9,7 @@ using HL7Parser.Core;
 
 namespace HL7Parser.Gui;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window 
 {
     private HL7Message? _parsed;
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
