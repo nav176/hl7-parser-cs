@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,6 +12,7 @@ namespace HL7Parser.Gui;
 public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
+    private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
 
     public MainWindow() => InitializeComponent();
 
@@ -59,6 +61,8 @@ public partial class MainWindow : Window
         catch (HL7ParseError ex) { ShowStatus($"Parse error: {ex.Message}", error: true); return; }
         catch (Exception ex)     { ShowStatus($"Unexpected error: {ex.Message}", error: true); return; }
 
+        ClearHighlights();
+        SearchBox.Text = "";
         PopulateSummary(_parsed);
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
@@ -291,7 +295,7 @@ public partial class MainWindow : Window
                 if (field == "segment_id") continue;
                 fieldNum++;
                 var rowLabel = $"{segId}-{fieldNum}  {field}";
-                var subItems = BuildSubItems(value);
+                var subItems = BuildSubItems(value, $"{segId}-{fieldNum}");
                 if (subItems != null)
                     sec.AddExpandableRow(rowLabel, ValueStr(value), subItems, keyWidth: 220);
                 else
@@ -300,7 +304,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static List<(string SubLabel, string SubValue)>? BuildSubItems(object? value)
+    private static List<(string SubLabel, string SubValue)>? BuildSubItems(object? value, string fieldRef = "")
     {
         if (value is not List<object?> lst || lst.Count == 0) return null;
         bool hasSubLists = lst.Any(x => x is List<object?>);
@@ -311,15 +315,15 @@ public partial class MainWindow : Window
             {
                 if (lst[r] is List<object?> repComps)
                     for (int c = 0; c < repComps.Count; c++)
-                        items.Add(($"rep {r + 1} · comp {c + 1}", repComps[c]?.ToString() ?? ""));
+                        items.Add(($"{fieldRef}~{r + 1}.{c + 1}", repComps[c]?.ToString() ?? ""));
                 else if (lst[r] != null)
-                    items.Add(($"rep {r + 1}", lst[r]!.ToString()!));
+                    items.Add(($"{fieldRef}~{r + 1}", lst[r]!.ToString()!));
             }
         }
         else
         {
             for (int c = 0; c < lst.Count; c++)
-                items.Add(($"comp {c + 1}", lst[c]?.ToString() ?? ""));
+                items.Add(($"{fieldRef}.{c + 1}", lst[c]?.ToString() ?? ""));
         }
         return items.Count > 0 ? items : null;
     }
@@ -335,29 +339,30 @@ public partial class MainWindow : Window
 
     private void PopulateSegments(HL7Message msg)
     {
+        ClearHighlights();
         SegTree.Items.Clear();
         var repCounts = msg.RepeatingSegments.ToDictionary(k => k.Key, v => v.Value.Count);
 
-        TreeViewItem MakeSubNode(string header) => new TreeViewItem
+        TreeViewItem MakeSubNode(string header) => AttachContextMenu(new TreeViewItem
         {
-            Header     = $"  {header}",
-            Foreground = new SolidColorBrush(Color.FromRgb(0x65, 0x67, 0x6B)),
+            Header     = header,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x57, 0x5B)),
             FontSize   = 10,
             FontWeight = FontWeights.Normal,
             Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
-        };
+        });
 
         void AddNode(string label, Dictionary<string, object?> seg)
         {
             var segId = label.Length >= 3 ? label[..3] : label;
-            var top = new TreeViewItem
+            var top = AttachContextMenu(new TreeViewItem
             {
                 Header     = label,
                 IsExpanded = false,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x0A, 0x66, 0xC2)),
-                Background = new SolidColorBrush(Color.FromRgb(0xD8, 0xEA, 0xFD)),
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x66, 0xC2)),
                 FontWeight = FontWeights.Bold,
-            };
+            });
 
             int fieldNum = 0;
             foreach (var (field, value) in seg)
@@ -368,14 +373,14 @@ public partial class MainWindow : Window
 
                 if (value is List<object?> lst)
                 {
-                    var composite = new TreeViewItem
+                    var composite = AttachContextMenu(new TreeViewItem
                     {
                         Header     = $"{fieldLabel}  =  {FlattenList(lst)}",
                         Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
                         FontWeight = FontWeights.Normal,
                         Background = Brushes.White,
                         IsExpanded = false,
-                    };
+                    });
                     bool hasSubLists = lst.Any(x => x is List<object?>);
                     if (hasSubLists)
                     {
@@ -384,15 +389,15 @@ public partial class MainWindow : Window
                             if (lst[r] is List<object?> repComps)
                             {
                                 var repVal = string.Join(" ^ ", repComps.Select(c => c?.ToString() ?? "").Where(s => s != ""));
-                                var repNode = MakeSubNode($"rep {r + 1}  =  {repVal}");
+                                var repNode = MakeSubNode($"{segId}-{fieldNum}~{r + 1}  =  {repVal}");
                                 for (int c = 0; c < repComps.Count; c++)
                                     if (repComps[c] != null)
-                                        repNode.Items.Add(MakeSubNode($"comp {c + 1}  =  {repComps[c]}"));
+                                        repNode.Items.Add(MakeSubNode($"{segId}-{fieldNum}~{r + 1}.{c + 1}  =  {repComps[c]}"));
                                 composite.Items.Add(repNode);
                             }
                             else if (lst[r] != null)
                             {
-                                composite.Items.Add(MakeSubNode($"rep {r + 1}  =  {lst[r]}"));
+                                composite.Items.Add(MakeSubNode($"{segId}-{fieldNum}~{r + 1}  =  {lst[r]}"));
                             }
                         }
                     }
@@ -400,19 +405,19 @@ public partial class MainWindow : Window
                     {
                         for (int c = 0; c < lst.Count; c++)
                             if (lst[c] != null)
-                                composite.Items.Add(MakeSubNode($"comp {c + 1}  =  {lst[c]}"));
+                                composite.Items.Add(MakeSubNode($"{segId}-{fieldNum}.{c + 1}  =  {lst[c]}"));
                     }
                     top.Items.Add(composite);
                 }
                 else
                 {
-                    top.Items.Add(new TreeViewItem
+                    top.Items.Add(AttachContextMenu(new TreeViewItem
                     {
                         Header     = $"{fieldLabel}  =  {ValueStr(value)}",
                         Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
                         FontWeight = FontWeights.Normal,
                         Background = Brushes.White,
-                    });
+                    }));
                 }
             }
             SegTree.Items.Add(top);
@@ -608,5 +613,126 @@ public partial class MainWindow : Window
         var id     = comps.Count > 0 ? comps[0]?.ToString() : null;
         var name   = Join(" ", given, family);
         return string.IsNullOrEmpty(name) ? (id ?? "") : name;
+    }
+
+    // ── Context menu ─────────────────────────────────────────────────────────
+
+    private static TreeViewItem AttachContextMenu(TreeViewItem item)
+    {
+        var cm = new ContextMenu();
+
+        var copyVal = new MenuItem { Header = "Copy Value" };
+        copyVal.Click += (_, _) =>
+        {
+            var txt = item.Header?.ToString() ?? "";
+            var idx = txt.IndexOf("  =  ", StringComparison.Ordinal);
+            Clipboard.SetText(idx >= 0 ? txt[(idx + 5)..].Trim() : txt.Trim());
+        };
+
+        var copyLine = new MenuItem { Header = "Copy Full Line" };
+        copyLine.Click += (_, _) => Clipboard.SetText((item.Header?.ToString() ?? "").Trim());
+
+        cm.Items.Add(copyVal);
+        cm.Items.Add(new Separator());
+        cm.Items.Add(copyLine);
+        item.ContextMenu = cm;
+        return item;
+    }
+
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    private void ClearHighlights()
+    {
+        foreach (var (item, bg, fg) in _highlighted)
+        {
+            item.Background = bg;
+            item.Foreground = fg;
+        }
+        _highlighted.Clear();
+    }
+
+    private void Highlight(TreeViewItem item)
+    {
+        _highlighted.Add((item, item.Background, item.Foreground));
+        item.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0x76));
+        item.Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21));
+    }
+
+    private void OnSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        ClearHighlights();
+        var query = SearchBox.Text.Trim();
+        if (!string.IsNullOrEmpty(query))
+            SearchSegTree(query);
+    }
+
+    private void OnSearchClear(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "";
+        ClearHighlights();
+    }
+
+    private void SearchSegTree(string query)
+    {
+        // PV1.3 or PV1-3 — segment + field number
+        var fieldRef = Regex.Match(query, @"^([A-Za-z]{2,3})[.\-](\d+)$");
+        if (fieldRef.Success)
+        {
+            var seg  = fieldRef.Groups[1].Value.ToUpperInvariant();
+            var fnum = fieldRef.Groups[2].Value;
+            foreach (TreeViewItem top in SegTree.Items)
+            {
+                var topText = top.Header?.ToString() ?? "";
+                if (!topText.StartsWith(seg, StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (TreeViewItem child in top.Items)
+                {
+                    if ((child.Header?.ToString() ?? "").StartsWith($"{seg}-{fnum}  ", StringComparison.Ordinal))
+                    {
+                        top.IsExpanded = true;
+                        Highlight(child);
+                    }
+                }
+            }
+            ScrollToFirstMatch();
+            return;
+        }
+
+        // PV1 — segment ID only
+        if (Regex.IsMatch(query, @"^[A-Za-z]{2,3}$"))
+        {
+            foreach (TreeViewItem top in SegTree.Items)
+            {
+                if ((top.Header?.ToString() ?? "").StartsWith(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    top.IsExpanded = true;
+                    Highlight(top);
+                }
+            }
+            ScrollToFirstMatch();
+            return;
+        }
+
+        // Free-text — search field labels and values
+        foreach (TreeViewItem top in SegTree.Items)
+        {
+            foreach (TreeViewItem child in top.Items)
+            {
+                var txt = child.Header?.ToString() ?? "";
+                if (txt.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    top.IsExpanded = true;
+                    Highlight(child);
+                }
+            }
+        }
+        ScrollToFirstMatch();
+    }
+
+    private void ScrollToFirstMatch()
+    {
+        if (_highlighted.Count == 0) return;
+        Dispatcher.InvokeAsync(
+            () => _highlighted[0].Item.BringIntoView(),
+            System.Windows.Threading.DispatcherPriority.Render);
     }
 }
