@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private double _treeZoom   = 1.0;
     private int    _matchIndex = -1;
     private bool   _hideEmpty  = false;
+    private bool   _darkMode   = false;
 
     public MainWindow()
     {
@@ -117,6 +118,27 @@ public partial class MainWindow : Window
         ApplyHideEmpty();
     }
 
+    // ── Dark mode ─────────────────────────────────────────────────────────────
+
+    private void OnToggleDarkMode(object sender, RoutedEventArgs e)
+    {
+        _darkMode = !_darkMode;
+        var src = _darkMode ? "Themes/Dark.xaml" : "Themes/Light.xaml";
+        var dict = new ResourceDictionary { Source = new Uri(src, UriKind.Relative) };
+        Application.Current.Resources.MergedDictionaries.Clear();
+        Application.Current.Resources.MergedDictionaries.Add(dict);
+
+        // Moon = currently light (click to go dark); Sun = currently dark (click to go light)
+        DarkModeIcon.Text = _darkMode ? "" : "";
+        DarkModeBtn.ToolTip = _darkMode ? "Switch to light mode" : "Switch to dark mode";
+
+        if (_parsed != null)
+        {
+            PopulateSegments(_parsed);
+            if (_hideEmpty) ApplyHideEmpty();
+        }
+    }
+
     // ── Hide empty fields ─────────────────────────────────────────────────────
 
     private static bool IsEmptyField(TreeViewItem item)
@@ -134,7 +156,6 @@ public partial class MainWindow : Window
                 SetItemVisibility(child);
     }
 
-    // Returns true if the item should remain visible.
     private bool SetItemVisibility(TreeViewItem item)
     {
         bool anyChildVisible = false;
@@ -168,6 +189,8 @@ public partial class MainWindow : Window
 
     // ── Segments tab ─────────────────────────────────────────────────────────
 
+    private static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+
     private void PopulateSegments(HL7Message msg)
     {
         ClearHighlights();
@@ -177,9 +200,9 @@ public partial class MainWindow : Window
         TreeViewItem MakeSubNode(string header) => AttachContextMenu(new TreeViewItem
         {
             Header     = header,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x57, 0x5B)),
+            Foreground = Res("SubNodeFg"),
             FontWeight = FontWeights.Normal,
-            Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
+            Background = Res("RaisedBg"),
         });
 
         void AddNode(string label, Dictionary<string, object?> seg)
@@ -206,9 +229,9 @@ public partial class MainWindow : Window
                     var composite = AttachContextMenu(new TreeViewItem
                     {
                         Header     = $"{fieldLabel}  =  {FlattenList(lst)}",
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
+                        Foreground = Res("Fg"),
                         FontWeight = FontWeights.Normal,
-                        Background = Brushes.White,
+                        Background = Res("SurfaceBg"),
                         IsExpanded = false,
                     });
                     bool hasSubLists = lst.Any(x => x is List<object?>);
@@ -256,9 +279,9 @@ public partial class MainWindow : Window
                     top.Items.Add(AttachContextMenu(new TreeViewItem
                     {
                         Header     = $"{fieldLabel}  =  {ValueStr(value)}",
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21)),
+                        Foreground = Res("Fg"),
                         FontWeight = FontWeights.Normal,
-                        Background = Brushes.White,
+                        Background = Res("SurfaceBg"),
                     }));
                 }
             }
@@ -297,15 +320,15 @@ public partial class MainWindow : Window
         StatusText.Text = message;
         if (error)
         {
-            StatusBar.Background  = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0xF0));
-            StatusBar.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xCD, 0xD2));
-            StatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));
+            StatusBar.Background  = Res("StatusErrBg");
+            StatusBar.BorderBrush = Res("StatusErrBorder");
+            StatusText.Foreground = Res("StatusErrFg");
         }
         else
         {
-            StatusBar.Background  = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA));
-            StatusBar.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE4, 0xE6, 0xEA));
-            StatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x65, 0x67, 0x6B));
+            StatusBar.Background  = Res("StatusOkBg");
+            StatusBar.BorderBrush = Res("ThemeBorder");
+            StatusText.Foreground = Res("StatusOkFg");
         }
     }
 
@@ -451,7 +474,6 @@ public partial class MainWindow : Window
     {
         if (_highlighted.Count == 0) return;
 
-        // Restore previous current match to regular highlight
         if (_matchIndex >= 0 && _matchIndex < _highlighted.Count)
         {
             _highlighted[_matchIndex].Item.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0x76));
@@ -460,7 +482,7 @@ public partial class MainWindow : Window
 
         _matchIndex = idx;
         var cur = _highlighted[_matchIndex].Item;
-        cur.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00)); // orange = current
+        cur.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
         cur.Foreground = Brushes.White;
 
         Dispatcher.InvokeAsync(

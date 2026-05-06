@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="AppBg"          Color="#FAFAFA"/>
+    <SolidColorBrush x:Key="SurfaceBg"      Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="RaisedBg"       Color="#F7F8FA"/>
+
+    <!-- Borders -->
+    <SolidColorBrush x:Key="ThemeBorder"    Color="#E0E3E8"/>
+
+    <!-- Foregrounds -->
+    <SolidColorBrush x:Key="Fg"             Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="MutedFg"        Color="#65676B"/>
+    <SolidColorBrush x:Key="HintFg"         Color="#8A8D91"/>
+    <SolidColorBrush x:Key="SubNodeFg"      Color="#55575B"/>
+
+    <!-- Secondary buttons -->
+    <SolidColorBrush x:Key="SecFg"          Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="SecBorder"      Color="#D0D3D8"/>
+    <SolidColorBrush x:Key="SecHover"       Color="#EAECF0"/>
+    <SolidColorBrush x:Key="SecPressed"     Color="#D8DBE0"/>
+
+    <!-- Disabled state -->
+    <SolidColorBrush x:Key="DisabledFg"     Color="#BEC3C9"/>
+    <SolidColorBrush x:Key="DisabledBg"     Color="#E4E6EA"/>
+    <SolidColorBrush x:Key="DisabledBorder" Color="#E4E6EA"/>
+
+    <!-- Tab hover -->
+    <SolidColorBrush x:Key="TabHoverBorder" Color="#C5C7CA"/>
+    <SolidColorBrush x:Key="TabHoverFg"     Color="#1E1E1E"/>
+
+    <!-- Status bar states -->
+    <SolidColorBrush x:Key="StatusOkBg"     Color="#F7F8FA"/>
+    <SolidColorBrush x:Key="StatusOkBorder" Color="#E4E6EA"/>
+    <SolidColorBrush x:Key="StatusOkFg"     Color="#65676B"/>
+    <SolidColorBrush x:Key="StatusErrBg"    Color="#FFF0F0"/>
+    <SolidColorBrush x:Key="StatusErrBorder" Color="#FFCDD2"/>
+    <SolidColorBrush x:Key="StatusErrFg"    Color="#C62828"/>
+
+</ResourceDictionary>
