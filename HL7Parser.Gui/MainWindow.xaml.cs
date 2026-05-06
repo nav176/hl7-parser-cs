@@ -13,10 +13,11 @@ public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
-    private double _treeZoom   = 1.0;
-    private int    _matchIndex = -1;
-    private bool   _hideEmpty  = false;
-    private bool   _darkMode   = false;
+    private double _treeZoom      = 1.0;
+    private int    _matchIndex    = -1;
+    private bool   _hideEmpty     = false;
+    private bool   _darkMode      = false;
+    private bool   _statusIsError = false;
 
     public MainWindow()
     {
@@ -128,14 +129,42 @@ public partial class MainWindow : Window
         Application.Current.Resources.MergedDictionaries.Clear();
         Application.Current.Resources.MergedDictionaries.Add(dict);
 
-        // Moon = currently light (click to go dark); Sun = currently dark (click to go light)
-        DarkModeIcon.Text = _darkMode ? "" : "";
+        DarkModeIcon.Text   = _darkMode ? "" : "";  // Sun : Moon
         DarkModeBtn.ToolTip = _darkMode ? "Switch to light mode" : "Switch to dark mode";
 
-        if (_parsed != null)
+        // Update tree item colors in-place — preserves expand/collapse state and scroll position
+        RefreshTreeColors();
+
+        // Re-apply status bar with new theme colors
+        ShowStatus(StatusText.Text, _statusIsError);
+    }
+
+    // Walk tree items and repaint them without rebuilding the tree structure.
+    private void RefreshTreeColors()
+    {
+        // Clear search highlights first — their stored originals would be stale after recolor
+        ClearHighlights();
+        SearchBox.Text = "";
+
+        foreach (TreeViewItem segNode in SegTree.Items)
         {
-            PopulateSegments(_parsed);
-            if (_hideEmpty) ApplyHideEmpty();
+            // Segment header stays brand blue — skip it, just process children
+            foreach (TreeViewItem fieldNode in segNode.Items.OfType<TreeViewItem>())
+            {
+                fieldNode.Background = Res("SurfaceBg");
+                fieldNode.Foreground = Res("Fg");
+                RefreshSubNodes(fieldNode);
+            }
+        }
+    }
+
+    private static void RefreshSubNodes(TreeViewItem parent)
+    {
+        foreach (TreeViewItem child in parent.Items.OfType<TreeViewItem>())
+        {
+            child.Background = Res("RaisedBg");
+            child.Foreground = Res("SubNodeFg");
+            RefreshSubNodes(child);
         }
     }
 
@@ -189,6 +218,7 @@ public partial class MainWindow : Window
 
     // ── Segments tab ─────────────────────────────────────────────────────────
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private static Brush Res(string key) => (Brush)Application.Current.Resources[key];
 
     private void PopulateSegments(HL7Message msg)
@@ -310,26 +340,17 @@ public partial class MainWindow : Window
     // ── Raw JSON tab ─────────────────────────────────────────────────────────
 
     private void PopulateJson(HL7Message msg)
-        => JsonView.Text = JsonSerializer.Serialize(msg,
-               new JsonSerializerOptions { WriteIndented = true });
+        => JsonView.Text = JsonSerializer.Serialize(msg, JsonOpts);
 
     // ── Status bar ───────────────────────────────────────────────────────────
 
     private void ShowStatus(string message, bool error)
     {
-        StatusText.Text = message;
-        if (error)
-        {
-            StatusBar.Background  = Res("StatusErrBg");
-            StatusBar.BorderBrush = Res("StatusErrBorder");
-            StatusText.Foreground = Res("StatusErrFg");
-        }
-        else
-        {
-            StatusBar.Background  = Res("StatusOkBg");
-            StatusBar.BorderBrush = Res("ThemeBorder");
-            StatusText.Foreground = Res("StatusOkFg");
-        }
+        _statusIsError        = error;
+        StatusText.Text       = message;
+        StatusBar.Background  = Res(error ? "StatusErrBg"     : "StatusOkBg");
+        StatusBar.BorderBrush = Res(error ? "StatusErrBorder" : "ThemeBorder");
+        StatusText.Foreground = Res(error ? "StatusErrFg"     : "StatusOkFg");
     }
 
     // ── Formatting helpers ────────────────────────────────────────────────────
@@ -393,8 +414,8 @@ public partial class MainWindow : Window
     private void Highlight(TreeViewItem item)
     {
         _highlighted.Add((item, item.Background, item.Foreground));
-        item.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0x76));
-        item.Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21));
+        item.Background = Res("MatchBg");
+        item.Foreground = Res("MatchFg");
     }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e)
@@ -474,16 +495,17 @@ public partial class MainWindow : Window
     {
         if (_highlighted.Count == 0) return;
 
+        // Restore previous current match back to plain highlight
         if (_matchIndex >= 0 && _matchIndex < _highlighted.Count)
         {
-            _highlighted[_matchIndex].Item.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0x76));
-            _highlighted[_matchIndex].Item.Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21));
+            _highlighted[_matchIndex].Item.Background = Res("MatchBg");
+            _highlighted[_matchIndex].Item.Foreground = Res("MatchFg");
         }
 
         _matchIndex = idx;
         var cur = _highlighted[_matchIndex].Item;
-        cur.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
-        cur.Foreground = Brushes.White;
+        cur.Background = Res("MatchActiveBg");
+        cur.Foreground = Res("MatchActiveFg");
 
         Dispatcher.InvokeAsync(
             () => cur.BringIntoView(),

@@ -142,9 +142,6 @@
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBg}"
                 BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,0,1">
             <DockPanel Margin="16,0" VerticalAlignment="Center">
-                <Image Source="Assets/vytlone_logo.png" Height="34"
-                       VerticalAlignment="Center" Margin="0,0,20,0"
-                       RenderOptions.BitmapScalingMode="HighQuality"/>
                 <!-- Dark mode toggle (right-most) -->
                 <Button x:Name="DarkModeBtn" DockPanel.Dock="Right"
                         Style="{StaticResource IconBtn}" Width="34" Height="34"

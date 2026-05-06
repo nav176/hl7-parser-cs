@@ -30,6 +30,12 @@
     <SolidColorBrush x:Key="TabHoverBorder" Color="#4A4A4E"/>
     <SolidColorBrush x:Key="TabHoverFg"     Color="#CCCCCC"/>
 
+    <!-- Search match highlights (softened, WCAG AA compliant) -->
+    <SolidColorBrush x:Key="MatchBg"         Color="#3D3200"/>  <!-- dark gold   -->
+    <SolidColorBrush x:Key="MatchFg"         Color="#FFE080"/>  <!-- light gold  -->
+    <SolidColorBrush x:Key="MatchActiveBg"   Color="#7A3D00"/>  <!-- burnt orange -->
+    <SolidColorBrush x:Key="MatchActiveFg"   Color="#FFB347"/>  <!-- light orange -->
+
     <!-- Status bar states -->
     <SolidColorBrush x:Key="StatusOkBg"     Color="#252526"/>
     <SolidColorBrush x:Key="StatusOkBorder" Color="#3E3E42"/>
