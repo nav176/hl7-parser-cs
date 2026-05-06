@@ -13,8 +13,9 @@ public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
-    private double _treeZoom  = 1.0;
+    private double _treeZoom   = 1.0;
     private int    _matchIndex = -1;
+    private bool   _hideEmpty  = false;
 
     public MainWindow()
     {
@@ -87,8 +88,10 @@ public partial class MainWindow : Window
         SearchBox.Text = "";
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
-        ExpandBtn.IsEnabled   = true;
-        CollapseBtn.IsEnabled = true;
+        if (_hideEmpty) ApplyHideEmpty();
+        ExpandBtn.IsEnabled    = true;
+        CollapseBtn.IsEnabled  = true;
+        HideEmptyBtn.IsEnabled = true;
         ShowStatus($"Parsed successfully — {source}.", error: false);
         Tabs.SelectedIndex = 0;
     }
@@ -105,6 +108,42 @@ public partial class MainWindow : Window
     {
         foreach (var item in SegTree.Items.OfType<TreeViewItem>())
             item.IsExpanded = false;
+    }
+
+    private void OnToggleHideEmpty(object sender, RoutedEventArgs e)
+    {
+        _hideEmpty = !_hideEmpty;
+        HideEmptyBtn.Content = _hideEmpty ? "Show Empty" : "Hide Empty";
+        ApplyHideEmpty();
+    }
+
+    // ── Hide empty fields ─────────────────────────────────────────────────────
+
+    private static bool IsEmptyField(TreeViewItem item)
+    {
+        var txt = item.Header?.ToString() ?? "";
+        var idx = txt.IndexOf("  =  ", StringComparison.Ordinal);
+        if (idx < 0) return false;
+        return string.IsNullOrWhiteSpace(txt[(idx + 5)..]);
+    }
+
+    private void ApplyHideEmpty()
+    {
+        foreach (TreeViewItem top in SegTree.Items)
+            foreach (TreeViewItem child in top.Items.OfType<TreeViewItem>())
+                SetItemVisibility(child);
+    }
+
+    // Returns true if the item should remain visible.
+    private bool SetItemVisibility(TreeViewItem item)
+    {
+        bool anyChildVisible = false;
+        foreach (TreeViewItem child in item.Items.OfType<TreeViewItem>())
+            if (SetItemVisibility(child)) anyChildVisible = true;
+
+        bool hide = _hideEmpty && IsEmptyField(item) && !anyChildVisible;
+        item.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
+        return !hide;
     }
 
     // ── Zoom ─────────────────────────────────────────────────────────────────

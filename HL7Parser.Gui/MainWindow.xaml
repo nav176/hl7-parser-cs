@@ -129,9 +129,17 @@
 
     </Window.Resources>
 
-    <DockPanel>
-        <!-- Top bar -->
-        <Border DockPanel.Dock="Top" Height="56" Background="White"
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>                    <!-- Top bar -->
+            <RowDefinition Height="140" MinHeight="80"/>    <!-- Paste area (resizable) -->
+            <RowDefinition Height="5"/>                     <!-- Splitter -->
+            <RowDefinition Height="*" MinHeight="200"/>     <!-- Tabs -->
+            <RowDefinition Height="26"/>                    <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Top bar -->
+        <Border Grid.Row="0" Background="White"
                 BorderBrush="#E0E3E8" BorderThickness="0,0,0,1">
             <DockPanel Margin="16,0" VerticalAlignment="Center">
                 <Image Source="Assets/vytlone_logo.png" Height="34"
@@ -151,8 +159,8 @@
             </DockPanel>
         </Border>
 
-        <!-- Paste area -->
-        <Border DockPanel.Dock="Top" Background="White"
+        <!-- Row 1: Paste area (resizable) -->
+        <Border Grid.Row="1" Background="White"
                 BorderBrush="#E0E3E8" BorderThickness="0,0,0,1" Padding="16,10">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top"
@@ -161,10 +169,10 @@
                            HorizontalAlignment="Center"/>
                 <Button DockPanel.Dock="Right" Content="Parse Text"
                         Width="96" Height="34" Style="{StaticResource PrimaryBtn}"
-                        VerticalAlignment="Bottom" Margin="12,0,0,0" Click="OnParseText"/>
+                        VerticalAlignment="Top" Margin="12,0,0,0" Click="OnParseText"/>
                 <TextBox x:Name="MessageInputBox"
                          AcceptsReturn="True" AcceptsTab="False"
-                         TextWrapping="NoWrap" Height="86"
+                         TextWrapping="NoWrap"
                          FontFamily="Consolas" FontSize="11"
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Auto"
@@ -173,30 +181,30 @@
             </DockPanel>
         </Border>
 
-        <!-- Status bar -->
-        <Border x:Name="StatusBar" DockPanel.Dock="Bottom" Height="26"
-                Background="#F7F8FA" BorderBrush="#E0E3E8" BorderThickness="0,1,0,0">
-            <TextBlock x:Name="StatusText" Margin="12,0" VerticalAlignment="Center"
-                       FontSize="11" Foreground="#65676B"
-                       Text="Open an HL7 file to begin."/>
-        </Border>
+        <!-- Row 2: GridSplitter -->
+        <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="#E0E3E8" Cursor="SizeNS"/>
 
-        <!-- Tabs -->
-        <TabControl x:Name="Tabs" Background="#FAFAFA" BorderThickness="0">
+        <!-- Row 3: Tabs -->
+        <TabControl x:Name="Tabs" Grid.Row="3" Background="#FAFAFA" BorderThickness="0">
             <TabItem Header="Segments">
                 <DockPanel Background="White">
                     <Border DockPanel.Dock="Top" Height="44" Background="White"
                             BorderBrush="#E0E3E8" BorderThickness="0,0,0,1">
                         <DockPanel Margin="12,0" VerticalAlignment="Center">
 
-                            <!-- Left: expand / collapse + zoom -->
+                            <!-- Left: expand / collapse / hide-empty + zoom -->
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <Button x:Name="ExpandBtn" Content="Expand All"
                                         Width="90" Height="30" Style="{StaticResource SecBtn}"
                                         IsEnabled="False" Click="OnExpandAll" Margin="0,0,6,0"/>
                                 <Button x:Name="CollapseBtn" Content="Collapse All"
                                         Width="96" Height="30" Style="{StaticResource SecBtn}"
-                                        IsEnabled="False" Click="OnCollapseAll" Margin="0,0,14,0"/>
+                                        IsEnabled="False" Click="OnCollapseAll" Margin="0,0,6,0"/>
+                                <Button x:Name="HideEmptyBtn" Content="Hide Empty"
+                                        Width="96" Height="30" Style="{StaticResource SecBtn}"
+                                        IsEnabled="False" Click="OnToggleHideEmpty" Margin="0,0,14,0"/>
                                 <!-- Divider -->
                                 <Border Width="1" Background="#E0E3E8" Margin="0,4"/>
                                 <!-- Zoom Out (Segoe MDL2 Assets ZoomOut) -->
@@ -276,5 +284,13 @@
                          HorizontalScrollBarVisibility="Auto"/>
             </TabItem>
         </TabControl>
-    </DockPanel>
+
+        <!-- Row 4: Status bar -->
+        <Border x:Name="StatusBar" Grid.Row="4"
+                Background="#F7F8FA" BorderBrush="#E0E3E8" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText" Margin="12,0" VerticalAlignment="Center"
+                       FontSize="11" Foreground="#65676B"
+                       Text="Open an HL7 file to begin."/>
+        </Border>
+    </Grid>
 </Window>
