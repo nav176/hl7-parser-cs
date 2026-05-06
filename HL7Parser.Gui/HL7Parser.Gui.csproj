@@ -4,6 +4,10 @@
     <ProjectReference Include="..\HL7Parser.Core\HL7Parser.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\vytlone_logo.png" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>

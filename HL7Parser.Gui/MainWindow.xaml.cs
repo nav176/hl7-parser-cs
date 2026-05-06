@@ -13,7 +13,8 @@ public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
-    private double _treeZoom = 1.0;
+    private double _treeZoom  = 1.0;
+    private int    _matchIndex = -1;
 
     public MainWindow()
     {
@@ -138,7 +139,6 @@ public partial class MainWindow : Window
         {
             Header     = header,
             Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x57, 0x5B)),
-            FontSize   = 10,
             FontWeight = FontWeights.Normal,
             Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
         });
@@ -151,7 +151,7 @@ public partial class MainWindow : Window
                 Header     = label,
                 IsExpanded = false,
                 Foreground = Brushes.White,
-                Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x66, 0xC2)),
+                Background = new SolidColorBrush(Color.FromRgb(0x00, 0x33, 0xA0)),
                 FontWeight = FontWeights.Bold,
             });
 
@@ -325,6 +325,7 @@ public partial class MainWindow : Window
             item.Foreground = fg;
         }
         _highlighted.Clear();
+        _matchIndex = -1;
     }
 
     private void Highlight(TreeViewItem item)
@@ -342,10 +343,13 @@ public partial class MainWindow : Window
             SearchSegTree(query);
     }
 
-    private void OnSearchClear(object sender, RoutedEventArgs e)
+    private void OnFindNext(object sender, RoutedEventArgs e) => AdvanceMatch(+1);
+    private void OnFindPrev(object sender, RoutedEventArgs e) => AdvanceMatch(-1);
+
+    private void AdvanceMatch(int delta)
     {
-        SearchBox.Text = "";
-        ClearHighlights();
+        if (_highlighted.Count == 0) return;
+        ScrollToMatch((_matchIndex + delta + _highlighted.Count) % _highlighted.Count);
     }
 
     private void SearchSegTree(string query)
@@ -369,7 +373,7 @@ public partial class MainWindow : Window
                     }
                 }
             }
-            ScrollToFirstMatch();
+            ScrollToMatch(0);
             return;
         }
 
@@ -384,7 +388,7 @@ public partial class MainWindow : Window
                     Highlight(top);
                 }
             }
-            ScrollToFirstMatch();
+            ScrollToMatch(0);
             return;
         }
 
@@ -401,14 +405,27 @@ public partial class MainWindow : Window
                 }
             }
         }
-        ScrollToFirstMatch();
+        ScrollToMatch(0);
     }
 
-    private void ScrollToFirstMatch()
+    private void ScrollToMatch(int idx)
     {
         if (_highlighted.Count == 0) return;
+
+        // Restore previous current match to regular highlight
+        if (_matchIndex >= 0 && _matchIndex < _highlighted.Count)
+        {
+            _highlighted[_matchIndex].Item.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0x76));
+            _highlighted[_matchIndex].Item.Foreground = new SolidColorBrush(Color.FromRgb(0x1C, 0x1E, 0x21));
+        }
+
+        _matchIndex = idx;
+        var cur = _highlighted[_matchIndex].Item;
+        cur.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00)); // orange = current
+        cur.Foreground = Brushes.White;
+
         Dispatcher.InvokeAsync(
-            () => _highlighted[0].Item.BringIntoView(),
+            () => cur.BringIntoView(),
             System.Windows.Threading.DispatcherPriority.Render);
     }
 }
