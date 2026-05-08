@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.0.90" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\HL7Parser.Core\HL7Parser.Core.csproj" />
   </ItemGroup>
 

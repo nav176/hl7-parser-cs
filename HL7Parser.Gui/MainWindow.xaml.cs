@@ -88,6 +88,7 @@ public partial class MainWindow : Window
 
         ClearHighlights();
         SearchBox.Text = "";
+        PopulateSummary(_parsed);
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
         if (_hideEmpty) ApplyHideEmpty();
@@ -216,6 +217,102 @@ public partial class MainWindow : Window
         ZoomLabel.Text = $"{(int)Math.Round(_treeZoom * 100)}%";
     }
 
+    // ── Summary tab ──────────────────────────────────────────────────────────
+
+    private void PopulateSummary(HL7Message msg)
+    {
+        SummaryPanel.Children.Clear();
+        CollapsibleSection.ResetColours();
+
+        foreach (var (segId, repIdx) in msg.SegmentOrder)
+        {
+            Dictionary<string, object?>? seg = null;
+            string blockLabel;
+
+            if (repIdx is null)
+            {
+                msg.Segments.TryGetValue(segId, out seg);
+                blockLabel = segId;
+            }
+            else
+            {
+                if (msg.RepeatingSegments.TryGetValue(segId, out var insts) && repIdx < insts.Count)
+                {
+                    seg = insts[repIdx.Value];
+                    var count = msg.RepeatingSegments[segId].Count;
+                    blockLabel = count > 1 ? $"{segId} [{repIdx + 1} of {count}]" : segId;
+                }
+                else blockLabel = segId;
+            }
+
+            if (seg == null) continue;
+
+            var sec = AddSection(blockLabel);
+
+            foreach (var (field, val) in seg)
+            {
+                if (field == "segment_id") continue;
+                int num = GetFieldNumber(segId, field);
+                var rowLabel = num > 0 ? $"{segId}-{num}  {field}" : field;
+
+                if (val is List<object?> list && list.Count > 0)
+                {
+                    var subItems = GetSubItems(list);
+                    if (subItems.Count > 0)
+                        sec.AddExpandableRow(rowLabel, ValueStr(val), subItems, keyWidth: 180);
+                    else
+                        sec.AddRow(rowLabel, ValueStr(val), keyWidth: 180);
+                }
+                else
+                {
+                    sec.AddRow(rowLabel, ValueStr(val), keyWidth: 180);
+                }
+            }
+        }
+    }
+
+    private CollapsibleSection AddSection(string title)
+    {
+        var sec = new CollapsibleSection(title);
+        SummaryPanel.Children.Add(sec);
+        return sec;
+    }
+
+    private static int GetFieldNumber(string segId, string fieldName)
+    {
+        if (!SegmentFields.Fields.TryGetValue(segId, out var names)) return 0;
+        var idx = Array.IndexOf(names, fieldName);
+        return idx > 0 ? idx : 0;
+    }
+
+    private static List<(string SubLabel, string SubValue)> GetSubItems(List<object?> list)
+    {
+        var result = new List<(string, string)>();
+        bool hasReps = list.Any(x => x is List<object?>);
+        if (hasReps)
+        {
+            for (int r = 0; r < list.Count; r++)
+            {
+                var rep = list[r];
+                var repStr = rep is List<object?> comps
+                    ? string.Join(" ^ ", comps.Select(c => c?.ToString() ?? "").Where(s => s != ""))
+                    : rep?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(repStr))
+                    result.Add(($"Rep {r + 1}", repStr));
+            }
+        }
+        else
+        {
+            for (int c = 0; c < list.Count; c++)
+            {
+                var cv = list[c]?.ToString();
+                if (!string.IsNullOrEmpty(cv))
+                    result.Add(($".{c + 1}", cv));
+            }
+        }
+        return result;
+    }
+
     // ── Segments tab ─────────────────────────────────────────────────────────
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
@@ -235,12 +332,12 @@ public partial class MainWindow : Window
             Background = Res("RaisedBg"),
         });
 
-        void AddNode(string label, Dictionary<string, object?> seg)
+        void AddNode(int lineNum, string label, Dictionary<string, object?> seg)
         {
             var segId = label.Length >= 3 ? label[..3] : label;
             var top = AttachContextMenu(new TreeViewItem
             {
-                Header     = label,
+                Header     = $"{lineNum}  {label}",
                 IsExpanded = false,
                 Foreground = Brushes.White,
                 Background = new SolidColorBrush(Color.FromRgb(0x00, 0x33, 0xA0)),
@@ -318,11 +415,13 @@ public partial class MainWindow : Window
             SegTree.Items.Add(top);
         }
 
+        int lineNum = 0;
         foreach (var (segId, repIdx) in msg.SegmentOrder)
         {
+            lineNum++;
             if (repIdx is null)
             {
-                if (msg.Segments.TryGetValue(segId, out var s)) AddNode(segId, s);
+                if (msg.Segments.TryGetValue(segId, out var s)) AddNode(lineNum, segId, s);
             }
             else
             {
@@ -331,7 +430,7 @@ public partial class MainWindow : Window
                 {
                     var count = repCounts.GetValueOrDefault(segId, 1);
                     var label = count > 1 ? $"{segId} [{repIdx + 1} of {count}]" : segId;
-                    AddNode(label, insts[repIdx.Value]);
+                    AddNode(lineNum, label, insts[repIdx.Value]);
                 }
             }
         }
@@ -435,6 +534,14 @@ public partial class MainWindow : Window
         ScrollToMatch((_matchIndex + delta + _highlighted.Count) % _highlighted.Count);
     }
 
+    // Segment headers are formatted as "{lineNum}  {segId}…" — strip the leading "N  " prefix.
+    private static string SegIdFromHeader(TreeViewItem item)
+    {
+        var h = item.Header?.ToString() ?? "";
+        var i = h.IndexOf("  ", StringComparison.Ordinal);
+        return i >= 0 ? h[(i + 2)..] : h;
+    }
+
     private void SearchSegTree(string query)
     {
         // PV1.3 or PV1-3 — segment + field number
@@ -445,8 +552,7 @@ public partial class MainWindow : Window
             var fnum = fieldRef.Groups[2].Value;
             foreach (TreeViewItem top in SegTree.Items)
             {
-                var topText = top.Header?.ToString() ?? "";
-                if (!topText.StartsWith(seg, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!SegIdFromHeader(top).StartsWith(seg, StringComparison.OrdinalIgnoreCase)) continue;
                 foreach (TreeViewItem child in top.Items)
                 {
                     if ((child.Header?.ToString() ?? "").StartsWith($"{seg}-{fnum}  ", StringComparison.Ordinal))
@@ -465,7 +571,7 @@ public partial class MainWindow : Window
         {
             foreach (TreeViewItem top in SegTree.Items)
             {
-                if ((top.Header?.ToString() ?? "").StartsWith(query, StringComparison.OrdinalIgnoreCase))
+                if (SegIdFromHeader(top).StartsWith(query, StringComparison.OrdinalIgnoreCase))
                 {
                     top.IsExpanded = true;
                     Highlight(top);
