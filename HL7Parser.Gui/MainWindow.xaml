@@ -202,11 +202,64 @@
                     Background="{DynamicResource AppBg}" BorderThickness="0">
 
             <TabItem Header="Summary">
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Background="{DynamicResource AppBg}">
-                    <StackPanel x:Name="SummaryPanel" Margin="16,14"/>
-                </ScrollViewer>
+                <DockPanel Background="{DynamicResource AppBg}">
+
+                    <Border DockPanel.Dock="Top" Height="44"
+                            Background="{DynamicResource SurfaceBg}"
+                            BorderBrush="{DynamicResource ThemeBorder}"
+                            BorderThickness="0,0,0,1">
+                        <DockPanel Margin="12,0" VerticalAlignment="Center">
+
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <Button x:Name="SummaryExpandBtn" Content="Expand All"
+                                        Width="90" Height="30" Style="{StaticResource SecBtn}"
+                                        IsEnabled="False" Click="OnSummaryExpandAll" Margin="0,0,6,0"/>
+                                <Button x:Name="SummaryCollapseBtn" Content="Collapse All"
+                                        Width="96" Height="30" Style="{StaticResource SecBtn}"
+                                        IsEnabled="False" Click="OnSummaryCollapseAll" Margin="0,0,6,0"/>
+                                <Button x:Name="SummaryHideEmptyBtn" Content="Hide Empty"
+                                        Width="96" Height="30" Style="{StaticResource SecBtn}"
+                                        IsEnabled="False" Click="OnSummaryToggleHideEmpty"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center">
+                                <Border BorderBrush="{DynamicResource SecBorder}" BorderThickness="1"
+                                        CornerRadius="7" Background="{DynamicResource SurfaceBg}"
+                                        Height="30">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;"
+                                                   FontSize="11" Foreground="{DynamicResource HintFg}"
+                                                   VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                        <TextBox x:Name="SummarySearchBox" Width="210"
+                                                 VerticalContentAlignment="Center" Padding="0,0,6,0"
+                                                 Background="Transparent"
+                                                 Foreground="{DynamicResource Fg}"
+                                                 CaretBrush="{DynamicResource Fg}"
+                                                 BorderThickness="0"
+                                                 TextChanged="OnSummarySearchChanged"/>
+                                    </StackPanel>
+                                </Border>
+                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
+                                        Margin="6,0,2,0" Click="OnSummaryFindPrev" ToolTip="Previous match">
+                                    <TextBlock Text="▲" FontSize="10" VerticalAlignment="Center"/>
+                                </Button>
+                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
+                                        Click="OnSummaryFindNext" ToolTip="Next match">
+                                    <TextBlock Text="▼" FontSize="10" VerticalAlignment="Center"/>
+                                </Button>
+                            </StackPanel>
+
+                        </DockPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Background="{DynamicResource AppBg}">
+                        <StackPanel x:Name="SummaryPanel" Margin="16,14"/>
+                    </ScrollViewer>
+
+                </DockPanel>
             </TabItem>
 
             <TabItem Header="Segments">

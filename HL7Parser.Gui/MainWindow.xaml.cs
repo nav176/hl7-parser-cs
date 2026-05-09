@@ -13,11 +13,14 @@ public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
-    private double _treeZoom      = 1.0;
-    private int    _matchIndex    = -1;
-    private bool   _hideEmpty     = false;
-    private bool   _darkMode      = false;
-    private bool   _statusIsError = false;
+    private readonly List<(Border Item, Brush OrigBg)> _summaryHighlights = new();
+    private double _treeZoom          = 1.0;
+    private int    _matchIndex        = -1;
+    private int    _summaryMatchIndex = -1;
+    private bool   _hideEmpty         = false;
+    private bool   _summaryHideEmpty  = false;
+    private bool   _darkMode          = false;
+    private bool   _statusIsError     = false;
 
     public MainWindow()
     {
@@ -87,14 +90,20 @@ public partial class MainWindow : Window
         catch (Exception ex)     { ShowStatus($"Unexpected error: {ex.Message}", error: true); return; }
 
         ClearHighlights();
-        SearchBox.Text = "";
+        ClearSummaryHighlights();
+        SearchBox.Text        = "";
+        SummarySearchBox.Text = "";
         PopulateSummary(_parsed);
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
-        if (_hideEmpty) ApplyHideEmpty();
-        ExpandBtn.IsEnabled    = true;
-        CollapseBtn.IsEnabled  = true;
-        HideEmptyBtn.IsEnabled = true;
+        if (_hideEmpty)        ApplyHideEmpty();
+        if (_summaryHideEmpty) ApplySummaryHideEmpty();
+        ExpandBtn.IsEnabled        = true;
+        CollapseBtn.IsEnabled      = true;
+        HideEmptyBtn.IsEnabled     = true;
+        SummaryExpandBtn.IsEnabled    = true;
+        SummaryCollapseBtn.IsEnabled  = true;
+        SummaryHideEmptyBtn.IsEnabled = true;
         ShowStatus($"Parsed successfully — {source}.", error: false);
         Tabs.SelectedIndex = 0;
     }
@@ -132,6 +141,9 @@ public partial class MainWindow : Window
 
         DarkModeIcon.Text   = _darkMode ? "" : "";  // Sun : Moon
         DarkModeBtn.ToolTip = _darkMode ? "Switch to light mode" : "Switch to dark mode";
+
+        ClearSummaryHighlights();
+        SummarySearchBox.Text = "";
 
         // Update tree item colors in-place — preserves expand/collapse state and scroll position
         RefreshTreeColors();
@@ -313,6 +325,91 @@ public partial class MainWindow : Window
         return result;
     }
 
+    // ── Summary toolbar ──────────────────────────────────────────────────────
+
+    private void OnSummaryExpandAll(object sender, RoutedEventArgs e)
+    {
+        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
+            sec.SetExpanded(true);
+    }
+
+    private void OnSummaryCollapseAll(object sender, RoutedEventArgs e)
+    {
+        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
+            sec.SetExpanded(false);
+    }
+
+    private void OnSummaryToggleHideEmpty(object sender, RoutedEventArgs e)
+    {
+        _summaryHideEmpty = !_summaryHideEmpty;
+        SummaryHideEmptyBtn.Content = _summaryHideEmpty ? "Show Empty" : "Hide Empty";
+        ApplySummaryHideEmpty();
+    }
+
+    private void ApplySummaryHideEmpty()
+    {
+        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
+        {
+            bool allHidden = sec.ApplyHideEmpty(_summaryHideEmpty);
+            sec.Visibility = allHidden ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    private void OnSummarySearchChanged(object sender, TextChangedEventArgs e)
+    {
+        ClearSummaryHighlights();
+        var query = SummarySearchBox.Text.Trim();
+        if (!string.IsNullOrEmpty(query))
+            SearchSummary(query);
+    }
+
+    private void OnSummaryFindNext(object sender, RoutedEventArgs e) => AdvanceSummaryMatch(+1);
+    private void OnSummaryFindPrev(object sender, RoutedEventArgs e) => AdvanceSummaryMatch(-1);
+
+    private void AdvanceSummaryMatch(int delta)
+    {
+        if (_summaryHighlights.Count == 0) return;
+        ScrollToSummaryMatch((_summaryMatchIndex + delta + _summaryHighlights.Count) % _summaryHighlights.Count);
+    }
+
+    private void SearchSummary(string query)
+    {
+        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
+        {
+            foreach (var border in sec.FindRows(query))
+            {
+                _summaryHighlights.Add((border, border.Background ?? Brushes.Transparent));
+                border.Background = Res("MatchBg");
+            }
+        }
+        if (_summaryHighlights.Count > 0)
+            ScrollToSummaryMatch(0);
+    }
+
+    private void ClearSummaryHighlights()
+    {
+        foreach (var (item, origBg) in _summaryHighlights)
+            item.Background = origBg;
+        _summaryHighlights.Clear();
+        _summaryMatchIndex = -1;
+    }
+
+    private void ScrollToSummaryMatch(int idx)
+    {
+        if (_summaryHighlights.Count == 0) return;
+
+        if (_summaryMatchIndex >= 0 && _summaryMatchIndex < _summaryHighlights.Count)
+            _summaryHighlights[_summaryMatchIndex].Item.Background = Res("MatchBg");
+
+        _summaryMatchIndex = idx;
+        var cur = _summaryHighlights[_summaryMatchIndex].Item;
+        cur.Background = Res("MatchActiveBg");
+
+        Dispatcher.InvokeAsync(
+            () => cur.BringIntoView(),
+            System.Windows.Threading.DispatcherPriority.Render);
+    }
+
     // ── Segments tab ─────────────────────────────────────────────────────────
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
@@ -339,9 +436,9 @@ public partial class MainWindow : Window
             {
                 Header     = $"{lineNum}  {label}",
                 IsExpanded = false,
-                Foreground = Brushes.White,
-                Background = new SolidColorBrush(Color.FromRgb(0x00, 0x33, 0xA0)),
-                FontWeight = FontWeights.Bold,
+                Foreground = Res("Fg"),
+                Background = Res("SurfaceBg"),
+                FontWeight = FontWeights.SemiBold,
             });
 
             int fieldNum = 0;

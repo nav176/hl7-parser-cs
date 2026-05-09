@@ -9,18 +9,22 @@ public class CollapsibleSection : StackPanel
 {
     private static readonly Color[] Palette =
     [
-        Color.FromRgb(0xDC, 0xE8, 0xF9),  // blue
-        Color.FromRgb(0xD8, 0xF0, 0xE2),  // green
-        Color.FromRgb(0xFD, 0xF1, 0xD3),  // amber
-        Color.FromRgb(0xEC, 0xE0, 0xF8),  // violet
-        Color.FromRgb(0xD6, 0xF3, 0xF5),  // teal
-        Color.FromRgb(0xFD, 0xDF, 0xE6),  // rose
+        Color.FromRgb(0xDC, 0xE8, 0xF9),
+        Color.FromRgb(0xD8, 0xF0, 0xE2),
+        Color.FromRgb(0xFD, 0xF1, 0xD3),
+        Color.FromRgb(0xEC, 0xE0, 0xF8),
+        Color.FromRgb(0xD6, 0xF3, 0xF5),
+        Color.FromRgb(0xFD, 0xDF, 0xE6),
     ];
 
     private static int _colourIndex;
 
     private readonly StackPanel _rows = new();
+    private readonly TextBlock  _chevron;
     private bool _expanded = true;
+
+    private record RowEntry(string SearchText, string Value, UIElement Element, Border RowBorder);
+    private readonly List<RowEntry> _rowData = new();
 
     public CollapsibleSection(string title)
     {
@@ -29,7 +33,7 @@ public class CollapsibleSection : StackPanel
         var accent = Palette[_colourIndex % Palette.Length];
         _colourIndex++;
 
-        var chevron = new TextBlock
+        _chevron = new TextBlock
         {
             Text              = "▾",
             Margin            = new Thickness(0, 0, 6, 0),
@@ -46,7 +50,7 @@ public class CollapsibleSection : StackPanel
         };
 
         var headerContent = new StackPanel { Orientation = Orientation.Horizontal };
-        headerContent.Children.Add(chevron);
+        headerContent.Children.Add(_chevron);
         headerContent.Children.Add(titleText);
 
         var header = new Border
@@ -58,12 +62,7 @@ public class CollapsibleSection : StackPanel
             Child        = headerContent,
         };
 
-        header.MouseLeftButtonUp += (_, _) =>
-        {
-            _expanded = !_expanded;
-            _rows.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
-            chevron.Text = _expanded ? "▾" : "▸";
-        };
+        header.MouseLeftButtonUp += (_, _) => SetExpanded(!_expanded);
 
         Children.Add(header);
 
@@ -80,18 +79,51 @@ public class CollapsibleSection : StackPanel
 
     public static void ResetColours() => _colourIndex = 0;
 
+    public void SetExpanded(bool expanded)
+    {
+        _expanded        = expanded;
+        _rows.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        _chevron.Text    = expanded ? "▾" : "▸";
+    }
+
     public void AddRow(string label, string value, int keyWidth = 0)
     {
-        _rows.Children.Add(BuildRow(label, value, keyWidth, subItems: null));
+        var (element, mainBorder) = BuildRow(label, value, keyWidth, subItems: null);
+        _rows.Children.Add(element);
+        _rowData.Add(new RowEntry($"{label}  {value}", value, element, mainBorder));
     }
 
     public void AddExpandableRow(string label, string value,
         List<(string SubLabel, string SubValue)> subItems, int keyWidth = 0)
     {
-        _rows.Children.Add(BuildRow(label, value, keyWidth, subItems));
+        var (element, mainBorder) = BuildRow(label, value, keyWidth, subItems);
+        _rows.Children.Add(element);
+        _rowData.Add(new RowEntry($"{label}  {value}", value, element, mainBorder));
     }
 
-    private static UIElement BuildRow(string label, string value, int keyWidth,
+    // Hides rows with empty values. Returns true if every row was hidden (caller may hide the section).
+    public bool ApplyHideEmpty(bool hide)
+    {
+        bool anyVisible = false;
+        foreach (var entry in _rowData)
+        {
+            bool shouldHide = hide && string.IsNullOrWhiteSpace(entry.Value);
+            entry.Element.Visibility = shouldHide ? Visibility.Collapsed : Visibility.Visible;
+            if (!shouldHide) anyVisible = true;
+        }
+        return _rowData.Count > 0 && !anyVisible;
+    }
+
+    public IEnumerable<Border> FindRows(string query)
+        => _rowData
+            .Where(r => r.SearchText.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.RowBorder);
+
+    public IEnumerable<Border> AllRowBorders()
+        => _rowData.Select(r => r.RowBorder);
+
+    private static (UIElement Element, Border MainBorder) BuildRow(
+        string label, string value, int keyWidth,
         List<(string SubLabel, string SubValue)>? subItems)
     {
         bool hasSubItems = subItems is { Count: > 0 };
@@ -144,8 +176,6 @@ public class CollapsibleSection : StackPanel
         mainRow.Children.Add(labelText);
         mainRow.Children.Add(valueText);
 
-        var container = new StackPanel();
-
         var mainBorder = new Border
         {
             Child           = mainRow,
@@ -155,13 +185,13 @@ public class CollapsibleSection : StackPanel
         };
 
         if (!hasSubItems)
-            return mainBorder;
+            return (mainBorder, mainBorder);
 
         var subPanel = new StackPanel
         {
-            Visibility  = Visibility.Collapsed,
-            Background  = Res("RaisedBg"),
-            Margin      = new Thickness(26, 0, 0, 0),
+            Visibility = Visibility.Collapsed,
+            Background = Res("RaisedBg"),
+            Margin     = new Thickness(26, 0, 0, 0),
         };
 
         foreach (var (subLabel, subValue) in subItems!)
@@ -215,9 +245,10 @@ public class CollapsibleSection : StackPanel
             indicator.Text = open ? "▶" : "▼";
         };
 
+        var container = new StackPanel();
         container.Children.Add(mainBorder);
         container.Children.Add(subPanel);
-        return container;
+        return (container, mainBorder);
     }
 
     private static Brush Res(string key) => (Brush)Application.Current.Resources[key];
