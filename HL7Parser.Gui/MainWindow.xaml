@@ -180,84 +180,6 @@
         <TabControl x:Name="Tabs" Grid.Row="2"
                     Background="{DynamicResource AppBg}" BorderThickness="0">
 
-            <TabItem Header="Summary">
-                <DockPanel Background="{DynamicResource AppBg}">
-
-                    <Border DockPanel.Dock="Top" Height="44"
-                            Background="{DynamicResource SurfaceBg}"
-                            BorderBrush="{DynamicResource ThemeBorder}"
-                            BorderThickness="0,0,0,1">
-                        <DockPanel Margin="12,0" VerticalAlignment="Center" LastChildFill="False">
-
-                            <!-- Right: search (declared first so it docks right) -->
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
-                                        VerticalAlignment="Center">
-                                <Border BorderBrush="{DynamicResource SecBorder}" BorderThickness="1"
-                                        CornerRadius="7" Background="{DynamicResource SurfaceBg}"
-                                        Height="30">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;"
-                                                   FontSize="11" Foreground="{DynamicResource HintFg}"
-                                                   VerticalAlignment="Center" Margin="8,0,4,0"/>
-                                        <TextBox x:Name="SummarySearchBox" Width="210"
-                                                 VerticalContentAlignment="Center" Padding="0,0,6,0"
-                                                 Background="Transparent"
-                                                 Foreground="{DynamicResource Fg}"
-                                                 CaretBrush="{DynamicResource Fg}"
-                                                 BorderThickness="0"
-                                                 TextChanged="OnSummarySearchChanged"/>
-                                    </StackPanel>
-                                </Border>
-                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
-                                        Margin="6,0,2,0" Click="OnSummaryFindPrev" ToolTip="Previous match">
-                                    <TextBlock Text="▲" FontSize="10" VerticalAlignment="Center"/>
-                                </Button>
-                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
-                                        Click="OnSummaryFindNext" ToolTip="Next match">
-                                    <TextBlock Text="▼" FontSize="10" VerticalAlignment="Center"/>
-                                </Button>
-                            </StackPanel>
-
-                            <!-- Left: expand / collapse / hide-empty + zoom -->
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                                <Button x:Name="SummaryExpandBtn" Content="Expand All"
-                                        Width="90" Height="30" Style="{StaticResource SecBtn}"
-                                        IsEnabled="False" Click="OnSummaryExpandAll" Margin="0,0,6,0"/>
-                                <Button x:Name="SummaryCollapseBtn" Content="Collapse All"
-                                        Width="96" Height="30" Style="{StaticResource SecBtn}"
-                                        IsEnabled="False" Click="OnSummaryCollapseAll" Margin="0,0,6,0"/>
-                                <Button x:Name="SummaryHideEmptyBtn" Content="Hide Empty"
-                                        Width="96" Height="30" Style="{StaticResource SecBtn}"
-                                        IsEnabled="False" Click="OnSummaryToggleHideEmpty" Margin="0,0,14,0"/>
-                                <Border Width="1" Background="{DynamicResource ThemeBorder}" Margin="0,4"/>
-                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
-                                        Margin="6,0,0,0" Click="OnSummaryZoomOut" ToolTip="Zoom out">
-                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A4;"
-                                               FontSize="14" VerticalAlignment="Center"/>
-                                </Button>
-                                <TextBlock x:Name="SummaryZoomLabel" Text="100%" Width="38"
-                                           VerticalAlignment="Center" TextAlignment="Center"
-                                           Foreground="{DynamicResource MutedFg}"
-                                           FontSize="11" Margin="2,0"/>
-                                <Button Style="{StaticResource IconBtn}" Width="30" Height="30"
-                                        Click="OnSummaryZoomIn" ToolTip="Zoom in">
-                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A3;"
-                                               FontSize="14" VerticalAlignment="Center"/>
-                                </Button>
-                            </StackPanel>
-
-                        </DockPanel>
-                    </Border>
-
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Auto"
-                                  Background="{DynamicResource AppBg}">
-                        <StackPanel x:Name="SummaryPanel" Margin="16,14"/>
-                    </ScrollViewer>
-
-                </DockPanel>
-            </TabItem>
-
             <TabItem Header="Segments">
                 <DockPanel Background="{DynamicResource SurfaceBg}">
                     <Border DockPanel.Dock="Top" Height="44"
@@ -325,7 +247,7 @@
 
                         </DockPanel>
                     </Border>
-                    <TreeView x:Name="SegTree" BorderThickness="0" FontSize="12"
+                    <TreeView x:Name="SegTree" BorderThickness="0" FontSize="14"
                               Background="{DynamicResource SurfaceBg}"
                               VirtualizingPanel.IsVirtualizing="True">
                         <TreeView.Resources>

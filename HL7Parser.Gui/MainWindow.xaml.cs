@@ -15,15 +15,11 @@ public partial class MainWindow : Window
     private HL7Message? _parsed;
     private string[]    _parsedLines = [];
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
-    private readonly List<(Border Item, Brush OrigBg)> _summaryHighlights = new();
-    private double _treeZoom          = 1.0;
-    private double _summaryZoom       = 1.0;
-    private int    _matchIndex        = -1;
-    private int    _summaryMatchIndex = -1;
-    private bool   _hideEmpty         = false;
-    private bool   _summaryHideEmpty  = false;
-    private bool   _darkMode          = false;
-    private bool   _statusIsError     = false;
+    private double _treeZoom      = 1.0;
+    private int    _matchIndex    = -1;
+    private bool   _hideEmpty     = false;
+    private bool   _darkMode      = false;
+    private bool   _statusIsError = false;
 
     public MainWindow()
     {
@@ -92,23 +88,16 @@ public partial class MainWindow : Window
         var treeState = CaptureTreeState();
 
         ClearHighlights();
-        ClearSummaryHighlights();
-        SearchBox.Text        = "";
-        SummarySearchBox.Text = "";
-        PopulateSummary(_parsed);
+        SearchBox.Text = "";
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
 
         RestoreTreeState(treeState);
 
-        if (_hideEmpty)        ApplyHideEmpty();
-        if (_summaryHideEmpty) ApplySummaryHideEmpty();
-        ExpandBtn.IsEnabled        = true;
-        CollapseBtn.IsEnabled      = true;
-        HideEmptyBtn.IsEnabled     = true;
-        SummaryExpandBtn.IsEnabled    = true;
-        SummaryCollapseBtn.IsEnabled  = true;
-        SummaryHideEmptyBtn.IsEnabled = true;
+        if (_hideEmpty) ApplyHideEmpty();
+        ExpandBtn.IsEnabled    = true;
+        CollapseBtn.IsEnabled  = true;
+        HideEmptyBtn.IsEnabled = true;
         ShowStatus($"Parsed — {_parsed.SegmentOrder.Count} segments.", error: false);
         Tabs.SelectedIndex = 0;
     }
@@ -185,9 +174,6 @@ public partial class MainWindow : Window
 
         DarkModeIcon.Text   = _darkMode ? "" : "";  // Sun : Moon
         DarkModeBtn.ToolTip = _darkMode ? "Switch to light mode" : "Switch to dark mode";
-
-        ClearSummaryHighlights();
-        SummarySearchBox.Text = "";
 
         // Update tree item colors in-place — preserves expand/collapse state and scroll position
         RefreshTreeColors();
@@ -270,205 +256,6 @@ public partial class MainWindow : Window
     {
         SegTree.LayoutTransform = new ScaleTransform(_treeZoom, _treeZoom);
         ZoomLabel.Text = $"{(int)Math.Round(_treeZoom * 100)}%";
-    }
-
-    private void OnSummaryZoomIn(object sender, RoutedEventArgs e)
-    {
-        _summaryZoom = Math.Min(2.0, Math.Round(_summaryZoom + 0.1, 1));
-        ApplySummaryZoom();
-    }
-
-    private void OnSummaryZoomOut(object sender, RoutedEventArgs e)
-    {
-        _summaryZoom = Math.Max(0.5, Math.Round(_summaryZoom - 0.1, 1));
-        ApplySummaryZoom();
-    }
-
-    private void ApplySummaryZoom()
-    {
-        SummaryPanel.LayoutTransform = new ScaleTransform(_summaryZoom, _summaryZoom);
-        SummaryZoomLabel.Text = $"{(int)Math.Round(_summaryZoom * 100)}%";
-    }
-
-    // ── Summary tab ──────────────────────────────────────────────────────────
-
-    private void PopulateSummary(HL7Message msg)
-    {
-        SummaryPanel.Children.Clear();
-        CollapsibleSection.ResetColours();
-
-        foreach (var (segId, repIdx) in msg.SegmentOrder)
-        {
-            Dictionary<string, object?>? seg = null;
-            string blockLabel;
-
-            if (repIdx is null)
-            {
-                msg.Segments.TryGetValue(segId, out seg);
-                blockLabel = segId;
-            }
-            else
-            {
-                if (msg.RepeatingSegments.TryGetValue(segId, out var insts) && repIdx < insts.Count)
-                {
-                    seg = insts[repIdx.Value];
-                    var count = msg.RepeatingSegments[segId].Count;
-                    blockLabel = count > 1 ? $"{segId} [{repIdx + 1} of {count}]" : segId;
-                }
-                else blockLabel = segId;
-            }
-
-            if (seg == null) continue;
-
-            var sec = AddSection(blockLabel);
-
-            foreach (var (field, val) in seg)
-            {
-                if (field == "segment_id") continue;
-                int num = GetFieldNumber(segId, field);
-                var rowLabel = num > 0 ? $"{segId}-{num}  {field}" : field;
-
-                if (val is List<object?> list && list.Count > 0)
-                {
-                    var subItems = GetSubItems(list);
-                    if (subItems.Count > 0)
-                        sec.AddExpandableRow(rowLabel, ValueStr(val), subItems, keyWidth: 180);
-                    else
-                        sec.AddRow(rowLabel, ValueStr(val), keyWidth: 180);
-                }
-                else
-                {
-                    sec.AddRow(rowLabel, ValueStr(val), keyWidth: 180);
-                }
-            }
-        }
-    }
-
-    private CollapsibleSection AddSection(string title)
-    {
-        var sec = new CollapsibleSection(title);
-        SummaryPanel.Children.Add(sec);
-        return sec;
-    }
-
-    private static int GetFieldNumber(string segId, string fieldName)
-    {
-        if (!SegmentFields.Fields.TryGetValue(segId, out var names)) return 0;
-        var idx = Array.IndexOf(names, fieldName);
-        return idx > 0 ? idx : 0;
-    }
-
-    private static List<(string SubLabel, string SubValue)> GetSubItems(List<object?> list)
-    {
-        var result = new List<(string, string)>();
-        bool hasReps = list.Any(x => x is List<object?>);
-        if (hasReps)
-        {
-            for (int r = 0; r < list.Count; r++)
-            {
-                var rep = list[r];
-                var repStr = rep is List<object?> comps
-                    ? string.Join(" ^ ", comps.Select(c => c?.ToString() ?? "").Where(s => s != ""))
-                    : rep?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(repStr))
-                    result.Add(($"Rep {r + 1}", repStr));
-            }
-        }
-        else
-        {
-            for (int c = 0; c < list.Count; c++)
-            {
-                var cv = list[c]?.ToString();
-                if (!string.IsNullOrEmpty(cv))
-                    result.Add(($".{c + 1}", cv));
-            }
-        }
-        return result;
-    }
-
-    // ── Summary toolbar ──────────────────────────────────────────────────────
-
-    private void OnSummaryExpandAll(object sender, RoutedEventArgs e)
-    {
-        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
-            sec.SetExpanded(true);
-    }
-
-    private void OnSummaryCollapseAll(object sender, RoutedEventArgs e)
-    {
-        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
-            sec.SetExpanded(false);
-    }
-
-    private void OnSummaryToggleHideEmpty(object sender, RoutedEventArgs e)
-    {
-        _summaryHideEmpty = !_summaryHideEmpty;
-        SummaryHideEmptyBtn.Content = _summaryHideEmpty ? "Show Empty" : "Hide Empty";
-        ApplySummaryHideEmpty();
-    }
-
-    private void ApplySummaryHideEmpty()
-    {
-        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
-        {
-            bool allHidden = sec.ApplyHideEmpty(_summaryHideEmpty);
-            sec.Visibility = allHidden ? Visibility.Collapsed : Visibility.Visible;
-        }
-    }
-
-    private void OnSummarySearchChanged(object sender, TextChangedEventArgs e)
-    {
-        ClearSummaryHighlights();
-        var query = SummarySearchBox.Text.Trim();
-        if (!string.IsNullOrEmpty(query))
-            SearchSummary(query);
-    }
-
-    private void OnSummaryFindNext(object sender, RoutedEventArgs e) => AdvanceSummaryMatch(+1);
-    private void OnSummaryFindPrev(object sender, RoutedEventArgs e) => AdvanceSummaryMatch(-1);
-
-    private void AdvanceSummaryMatch(int delta)
-    {
-        if (_summaryHighlights.Count == 0) return;
-        ScrollToSummaryMatch((_summaryMatchIndex + delta + _summaryHighlights.Count) % _summaryHighlights.Count);
-    }
-
-    private void SearchSummary(string query)
-    {
-        foreach (var sec in SummaryPanel.Children.OfType<CollapsibleSection>())
-        {
-            foreach (var border in sec.FindRows(query))
-            {
-                _summaryHighlights.Add((border, border.Background ?? Brushes.Transparent));
-                border.Background = Res("MatchBg");
-            }
-        }
-        if (_summaryHighlights.Count > 0)
-            ScrollToSummaryMatch(0);
-    }
-
-    private void ClearSummaryHighlights()
-    {
-        foreach (var (item, origBg) in _summaryHighlights)
-            item.Background = origBg;
-        _summaryHighlights.Clear();
-        _summaryMatchIndex = -1;
-    }
-
-    private void ScrollToSummaryMatch(int idx)
-    {
-        if (_summaryHighlights.Count == 0) return;
-
-        if (_summaryMatchIndex >= 0 && _summaryMatchIndex < _summaryHighlights.Count)
-            _summaryHighlights[_summaryMatchIndex].Item.Background = Res("MatchBg");
-
-        _summaryMatchIndex = idx;
-        var cur = _summaryHighlights[_summaryMatchIndex].Item;
-        cur.Background = Res("MatchActiveBg");
-
-        Dispatcher.InvokeAsync(
-            () => cur.BringIntoView(),
-            System.Windows.Threading.DispatcherPriority.Render);
     }
 
     // ── Segments tab ─────────────────────────────────────────────────────────
