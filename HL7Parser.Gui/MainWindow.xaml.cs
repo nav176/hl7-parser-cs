@@ -4,17 +4,20 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Microsoft.Win32;
+using ICSharpCode.AvalonEdit.Document;
 using HL7Parser.Core;
+using Microsoft.Win32;
 
 namespace HL7Parser.Gui;
 
 public partial class MainWindow : Window
 {
     private HL7Message? _parsed;
+    private string[]    _parsedLines = [];
     private readonly List<(TreeViewItem Item, Brush OrigBg, Brush OrigFg)> _highlighted = new();
     private readonly List<(Border Item, Brush OrigBg)> _summaryHighlights = new();
     private double _treeZoom          = 1.0;
+    private double _summaryZoom       = 1.0;
     private int    _matchIndex        = -1;
     private int    _summaryMatchIndex = -1;
     private bool   _hideEmpty         = false;
@@ -29,13 +32,12 @@ public partial class MainWindow : Window
         SegTree.AddHandler(TreeViewItem.UnselectedEvent, new RoutedEventHandler(OnTreeNodeUnselected));
     }
 
-    private static void OnTreeNodeSelected(object sender, RoutedEventArgs e)
+    private void OnTreeNodeSelected(object sender, RoutedEventArgs e)
     {
-        if (e.OriginalSource is TreeViewItem tvi)
-        {
-            tvi.Tag = tvi.Foreground;
-            tvi.Foreground = Brushes.White;
-        }
+        if (e.OriginalSource is not TreeViewItem tvi) return;
+        tvi.Tag = tvi.Foreground;
+        tvi.Foreground = Brushes.White;
+        HighlightInEditor(tvi);
     }
 
     private static void OnTreeNodeUnselected(object sender, RoutedEventArgs e)
@@ -44,32 +46,24 @@ public partial class MainWindow : Window
             tvi.Foreground = orig;
     }
 
-    // ── Browse / Parse ───────────────────────────────────────────────────────
+    // ── Parse ────────────────────────────────────────────────────────────────
 
-    private void OnBrowse(object sender, RoutedEventArgs e)
+    private void OnLoadFile(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
         {
             Title  = "Open HL7 File",
             Filter = "HL7 Files (*.hl7;*.txt)|*.hl7;*.txt|All Files (*.*)|*.*",
         };
-        if (dlg.ShowDialog() == true)
+        if (dlg.ShowDialog(this) != true) return;
+        try
         {
-            PathBox.Text       = dlg.FileName;
-            ParseBtn.IsEnabled = true;
-            ShowStatus("File selected — click Parse to process.", error: false);
+            MessageInputBox.Text = File.ReadAllText(dlg.FileName);
         }
-    }
-
-    private void OnParse(object sender, RoutedEventArgs e)
-    {
-        var path = PathBox.Text.Trim();
-        if (string.IsNullOrEmpty(path)) return;
-        string raw;
-        try { raw = File.ReadAllText(path, System.Text.Encoding.UTF8); }
-        catch (FileNotFoundException) { ShowStatus($"File not found: {path}", error: true); return; }
-        catch (Exception ex)          { ShowStatus($"Unexpected error: {ex.Message}", error: true); return; }
-        ParseAndDisplay(raw, Path.GetFileName(path));
+        catch (Exception ex)
+        {
+            ShowStatus($"Could not read file: {ex.Message}", error: true);
+        }
     }
 
     private void OnParseText(object sender, RoutedEventArgs e)
@@ -80,14 +74,22 @@ public partial class MainWindow : Window
             ShowStatus("Paste an HL7 message into the text area first.", error: true);
             return;
         }
-        ParseAndDisplay(text, "text input");
+        ParseAndDisplay(text);
     }
 
-    private void ParseAndDisplay(string text, string source)
+    private void ParseAndDisplay(string text)
     {
         try { _parsed = Parser.ParseRaw(text); }
         catch (HL7ParseError ex) { ShowStatus($"Parse error: {ex.Message}", error: true); return; }
         catch (Exception ex)     { ShowStatus($"Unexpected error: {ex.Message}", error: true); return; }
+
+        _parsedLines = text
+            .Replace("\r\n", "\n").Replace('\r', '\n')
+            .Split('\n')
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToArray();
+
+        var treeState = CaptureTreeState();
 
         ClearHighlights();
         ClearSummaryHighlights();
@@ -96,6 +98,9 @@ public partial class MainWindow : Window
         PopulateSummary(_parsed);
         PopulateSegments(_parsed);
         PopulateJson(_parsed);
+
+        RestoreTreeState(treeState);
+
         if (_hideEmpty)        ApplyHideEmpty();
         if (_summaryHideEmpty) ApplySummaryHideEmpty();
         ExpandBtn.IsEnabled        = true;
@@ -104,8 +109,47 @@ public partial class MainWindow : Window
         SummaryExpandBtn.IsEnabled    = true;
         SummaryCollapseBtn.IsEnabled  = true;
         SummaryHideEmptyBtn.IsEnabled = true;
-        ShowStatus($"Parsed successfully — {source}.", error: false);
+        ShowStatus($"Parsed — {_parsed.SegmentOrder.Count} segments.", error: false);
         Tabs.SelectedIndex = 0;
+    }
+
+    private Dictionary<string, HashSet<string>> CaptureTreeState()
+    {
+        var state = new Dictionary<string, HashSet<string>>();
+        foreach (TreeViewItem segNode in SegTree.Items)
+        {
+            if (!segNode.IsExpanded) continue;
+            var segLabel = StripLineNumber(segNode.Header?.ToString() ?? "");
+            var expandedFields = new HashSet<string>();
+            foreach (TreeViewItem fieldNode in segNode.Items.OfType<TreeViewItem>())
+            {
+                if (fieldNode.IsExpanded)
+                    expandedFields.Add(fieldNode.Header?.ToString() ?? "");
+            }
+            state[segLabel] = expandedFields;
+        }
+        return state;
+    }
+
+    private void RestoreTreeState(Dictionary<string, HashSet<string>> state)
+    {
+        foreach (TreeViewItem segNode in SegTree.Items)
+        {
+            var segLabel = StripLineNumber(segNode.Header?.ToString() ?? "");
+            if (!state.TryGetValue(segLabel, out var expandedFields)) continue;
+            segNode.IsExpanded = true;
+            foreach (TreeViewItem fieldNode in segNode.Items.OfType<TreeViewItem>())
+            {
+                if (expandedFields.Contains(fieldNode.Header?.ToString() ?? ""))
+                    fieldNode.IsExpanded = true;
+            }
+        }
+    }
+
+    private static string StripLineNumber(string header)
+    {
+        var m = Regex.Match(header, @"^\d+\s{2}(.+)$");
+        return m.Success ? m.Groups[1].Value : header;
     }
 
     // ── Tree toolbar ─────────────────────────────────────────────────────────
@@ -139,7 +183,7 @@ public partial class MainWindow : Window
         Application.Current.Resources.MergedDictionaries.Clear();
         Application.Current.Resources.MergedDictionaries.Add(dict);
 
-        DarkModeIcon.Text   = _darkMode ? "" : "";  // Sun : Moon
+        DarkModeIcon.Text   = _darkMode ? "" : "";  // Sun : Moon
         DarkModeBtn.ToolTip = _darkMode ? "Switch to light mode" : "Switch to dark mode";
 
         ClearSummaryHighlights();
@@ -152,16 +196,15 @@ public partial class MainWindow : Window
         ShowStatus(StatusText.Text, _statusIsError);
     }
 
-    // Walk tree items and repaint them without rebuilding the tree structure.
     private void RefreshTreeColors()
     {
-        // Clear search highlights first — their stored originals would be stale after recolor
         ClearHighlights();
         SearchBox.Text = "";
 
         foreach (TreeViewItem segNode in SegTree.Items)
         {
-            // Segment header stays brand blue — skip it, just process children
+            segNode.Background = Res("SurfaceBg");
+            segNode.Foreground = Res("Fg");
             foreach (TreeViewItem fieldNode in segNode.Items.OfType<TreeViewItem>())
             {
                 fieldNode.Background = Res("SurfaceBg");
@@ -227,6 +270,24 @@ public partial class MainWindow : Window
     {
         SegTree.LayoutTransform = new ScaleTransform(_treeZoom, _treeZoom);
         ZoomLabel.Text = $"{(int)Math.Round(_treeZoom * 100)}%";
+    }
+
+    private void OnSummaryZoomIn(object sender, RoutedEventArgs e)
+    {
+        _summaryZoom = Math.Min(2.0, Math.Round(_summaryZoom + 0.1, 1));
+        ApplySummaryZoom();
+    }
+
+    private void OnSummaryZoomOut(object sender, RoutedEventArgs e)
+    {
+        _summaryZoom = Math.Max(0.5, Math.Round(_summaryZoom - 0.1, 1));
+        ApplySummaryZoom();
+    }
+
+    private void ApplySummaryZoom()
+    {
+        SummaryPanel.LayoutTransform = new ScaleTransform(_summaryZoom, _summaryZoom);
+        SummaryZoomLabel.Text = $"{(int)Math.Round(_summaryZoom * 100)}%";
     }
 
     // ── Summary tab ──────────────────────────────────────────────────────────
@@ -592,6 +653,94 @@ public partial class MainWindow : Window
         cm.Items.Add(copyLine);
         item.ContextMenu = cm;
         return item;
+    }
+
+    // ── Editor highlight on tree selection ───────────────────────────────────
+
+    private void HighlightInEditor(TreeViewItem tvi)
+    {
+        if (_parsedLines.Length == 0) return;
+
+        var header = tvi.Header?.ToString() ?? "";
+
+        // Segment root node: "N  SEGID..."
+        var segRootMatch = Regex.Match(header, @"^(\d+)\s{2}");
+        if (segRootMatch.Success)
+        {
+            int segIdx = int.Parse(segRootMatch.Groups[1].Value) - 1;
+            var editorLine = FindEditorLine(segIdx);
+            if (editorLine < 0) return;
+            var docLine = MessageInputBox.Document.GetLineByNumber(editorLine);
+            MessageInputBox.Select(docLine.Offset, docLine.Length);
+            MessageInputBox.ScrollToLine(editorLine);
+            return;
+        }
+
+        // Field / sub-field node: "SEGID-N..."
+        var fieldMatch = Regex.Match(header, @"^([A-Z0-9]{2,3})-(\d+)");
+        if (!fieldMatch.Success) return;
+
+        var segId    = fieldMatch.Groups[1].Value;
+        int fieldNum = int.Parse(fieldMatch.Groups[2].Value);
+
+        var root      = GetSegmentRoot(tvi);
+        var rootMatch = Regex.Match(root.Header?.ToString() ?? "", @"^(\d+)\s{2}");
+        if (!rootMatch.Success) return;
+
+        int segIdx2    = int.Parse(rootMatch.Groups[1].Value) - 1;
+        int editorLine2 = FindEditorLine(segIdx2);
+        if (editorLine2 < 0) return;
+
+        var docLine2  = MessageInputBox.Document.GetLineByNumber(editorLine2);
+        var lineText  = MessageInputBox.Document.GetText(docLine2.Offset, docLine2.Length);
+
+        var (relOff, len) = GetFieldSpan(segId, fieldNum, lineText);
+        if (relOff < 0) return;
+
+        MessageInputBox.Select(docLine2.Offset + relOff, len);
+        MessageInputBox.ScrollToLine(editorLine2);
+    }
+
+    private int FindEditorLine(int segIdx)
+    {
+        if (segIdx < 0 || segIdx >= _parsedLines.Length) return -1;
+        var target = _parsedLines[segIdx].Trim();
+        for (int i = 1; i <= MessageInputBox.Document.LineCount; i++)
+        {
+            var dl   = MessageInputBox.Document.GetLineByNumber(i);
+            var text = MessageInputBox.Document.GetText(dl.Offset, dl.Length).Trim();
+            if (text == target) return i;
+        }
+        return -1;
+    }
+
+    // Returns (offset, length) of the given field within a raw HL7 line.
+    private static (int Offset, int Length) GetFieldSpan(string segId, int fieldNum, string line)
+    {
+        // MSH-1 is the literal | separator at position 3
+        if (segId == "MSH" && fieldNum == 1)
+            return (3, 1);
+
+        // For MSH, fields in the split array are at index = fieldNum-1;
+        // for all other segments, at index = fieldNum.
+        int pipeIdx = segId == "MSH" ? fieldNum - 1 : fieldNum;
+
+        var parts = line.Split('|');
+        if (pipeIdx >= parts.Length) return (-1, 0);
+
+        int offset = 0;
+        for (int i = 0; i < pipeIdx; i++)
+            offset += parts[i].Length + 1; // +1 for the | separator
+
+        return (offset, parts[pipeIdx].Length);
+    }
+
+    private static TreeViewItem GetSegmentRoot(TreeViewItem item)
+    {
+        var current = item;
+        while (current.Parent is TreeViewItem parent)
+            current = parent;
+        return current;
     }
 
     // ── Search ────────────────────────────────────────────────────────────────
